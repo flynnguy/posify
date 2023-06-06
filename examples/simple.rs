@@ -1,7 +1,7 @@
 use std::io;
 
-use escposify::device::File;
-use escposify::printer::Printer;
+use posify::device::File;
+use posify::printer::Printer;
 
 use tempfile::NamedTempFileOptions;
 
