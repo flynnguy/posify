@@ -309,6 +309,21 @@ impl<W: io::Write> Printer<W> {
         self.text(content).map(|_| self)
     }
 
+    pub fn underline_mode(&mut self, mode: Option<&str>) -> io::Result<usize> {
+
+        let mode = mode.unwrap_or("OFF");
+        let mode_upper = mode.to_uppercase();
+        match mode_upper.as_ref() {
+                "OFF" => Ok(self.write(&[0x1b, 0x2d, 0x00])?),
+                "ON" => Ok(self.write(&[0x1b, 0x2d, 0x01])?),
+                "THICK" => Ok(self.write(&[0x1b, 0x2d, 0x02])?),
+                _ => Ok(self.write(&[0x1b, 0x2d, 0x00])?),
+        }
+    }
+    pub fn chain_underline_mode(&mut self, mode: Option<&str>) -> io::Result<&mut Self> {
+        self.underline_mode(mode).map(|_| self)
+    }
+
     /// ESC 2/ESC 3 n - Set line spacing
     ///
     /// ESC 2 (0x1b, 0x32) Sets line spacing to default
@@ -651,11 +666,14 @@ impl<W: io::Write> Printer<W> {
     pub fn raster(&mut self, image: &Image, mode: Option<&str>) -> io::Result<usize> {
         let mode_upper = mode.unwrap_or("NORMAL").to_uppercase();
         let header = match mode_upper.as_ref() {
-            "DH" => consts::GSV0_DH,
-            "DWDH" => consts::GSV0_DWDH,
-            "DW" => consts::GSV0_DW,
+            // Double Wide
+            "DW" => &[0x1d, 0x76, 0x30, 0x01],
+            // Double Height
+            "DH" => &[0x1d, 0x76, 0x30, 0x02],
+            // Quadruple
+            "QD" => &[0x1d, 0x76, 0x30, 0x03],
             // "NORMAL" | _ =>
-            _ => consts::GSV0_NORMAL,
+            _ => &[0x1d, 0x76, 0x30, 0x00],
         };
         let mut n_bytes = 0;
         n_bytes += self.write(header)?;
