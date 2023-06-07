@@ -1,30 +1,26 @@
-use posify::device::File;
-use posify::img::Image;
-use posify::printer::Printer;
-
-use image::{DynamicImage, ImageBuffer};
+use image;
 use std::io;
-use tempfile::NamedTempFileOptions;
+use std::fs::OpenOptions;
+
+use posify::img;
+use posify::printer::{Printer, SupportedPrinters};
 
 fn main() -> io::Result<()> {
-    let tempf = NamedTempFileOptions::new().create().unwrap();
+    let logo = image::open("rust.png")
+        .expect("File not found!")
+        .resize(256, 256, image::imageops::Lanczos3);
+    let logo = img::Image::from(logo);
 
-    let file = File::from(tempf);
-    let mut printer = Printer::new(file, None, None);
+    let file = OpenOptions::new()
+        .write(true)
+        .open("/dev/usb/lp0").unwrap();
+    let mut printer = Printer::new(file, None, None, SupportedPrinters::P3);
 
-    let img = ImageBuffer::from_fn(512, 512, |x, _| {
-        if x % 2 == 0 {
-            image::Rgb([0, 0, 0])
-        } else {
-            image::Rgb([0xFF, 0xFF, 0xFF])
-        }
-    });
-    let image = Image::from(DynamicImage::ImageRgb8(img));
     printer
+        .chain_hwinit()?
         .chain_align("ct")?
-        .chain_bit_image(&image, Some("s8"))?
-        .chain_bit_image(&image, Some("d8"))?
-        .chain_bit_image(&image, Some("s24"))?
-        .chain_bit_image(&image, Some("d24"))?
+        .chain_raster(&logo, None)?
+        .chain_feed(1)?
+        .chain_partial_cut()?
         .flush()
 }
