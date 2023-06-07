@@ -1,4 +1,5 @@
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
+use std::str::Utf8Error;
 
 use byteorder::{LittleEndian, WriteBytesExt};
 use encoding::all::UTF_8;
@@ -151,17 +152,17 @@ impl Barcode {
 ///       .flush()
 /// }
 /// ```
-pub struct Printer<W: io::Write> {
-    writer: io::BufWriter<W>,
+pub struct Printer {
+    file: std::fs::File,
     codec: EncodingRef,
     trap: EncoderTrap,
     printer: SupportedPrinters,
 }
 
-impl<W: io::Write> Printer<W> {
-    pub fn new(writer: W, codec: Option<EncodingRef>, trap: Option<EncoderTrap>, printer: SupportedPrinters) -> Printer<W> {
+impl Printer {
+    pub fn new(file: std::fs::File, codec: Option<EncodingRef>, trap: Option<EncoderTrap>, printer: SupportedPrinters) -> Printer {
         Printer {
-            writer: io::BufWriter::new(writer),
+            file: file,
             codec: codec.unwrap_or(UTF_8 as EncodingRef),
             trap: trap.unwrap_or(EncoderTrap::Replace),
             printer: printer,
@@ -175,7 +176,7 @@ impl<W: io::Write> Printer<W> {
     }
 
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.writer.write(buf)
+        self.file.write(buf)
     }
 
     pub fn chain_write_u8(&mut self, n: u8) -> io::Result<&mut Self> {
@@ -192,7 +193,7 @@ impl<W: io::Write> Printer<W> {
     }
 
     pub fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()
+        self.file.flush()
     }
 
     /// ESC @ - Initialize printer, clear data in print buffer and set print mode
@@ -682,4 +683,110 @@ impl<W: io::Write> Printer<W> {
         n_bytes += self.write(image.get_raster().as_ref())?;
         Ok(n_bytes)
     }
+
+    pub fn get_serial(&mut self) -> Result<String, Utf8Error> {
+        self.file.write_all(&[0x1c, 0xea, 0x52]).unwrap();
+        let mut buffer = [0_u8; 16];
+        self.file.read(&mut buffer[..]).unwrap();
+        let value = std::str::from_utf8(&buffer)?;
+        Ok(value.to_string())
+    }
+
+    pub fn get_cut_count(&mut self) -> Result<String, Utf8Error> {
+        self.file.write_all(&[0x1d, 0xe2]).unwrap();
+        let mut buffer = [0_u8; 16]; // TODO: This is more than enough now... but what about as
+                                     // cuts increase?
+        self.file.read(&mut buffer[..]).unwrap();
+        let value = std::str::from_utf8(&buffer)?; // This seems to trim the padding
+        Ok(value.to_string())
+    }
+
+    pub fn get_rom_version(&mut self) -> Result<String, Utf8Error> {
+        self.file.write_all(&[0x1d, 0x49, 0x03]).unwrap();
+        let mut buffer = [0_u8; 4];
+        self.file.read(&mut buffer[..]).unwrap();
+        let value = std::str::from_utf8(&buffer)?;
+        Ok(value.to_string())
+    }
+
+    pub fn get_power_count(&mut self) -> Result<String, Utf8Error> {
+        self.file.write_all(&[0x1d, 0xe5]).unwrap();
+        let mut buffer = [0_u8; 8];
+        self.file.read(&mut buffer[..]).unwrap();
+        let value = std::str::from_utf8(&buffer)?;
+        Ok(value.to_string())
+    }
+
+    pub fn get_printed_length(&mut self) -> Result<String, Utf8Error> {
+        self.file.write_all(&[0x1d, 0xe3]).unwrap();
+        let mut buffer = [0_u8; 8];
+        self.file.read(&mut buffer[..]).unwrap();
+        let value = std::str::from_utf8(&buffer)?;
+        Ok(value.to_string())
+    }
+
+    pub fn get_remaining_paper(&mut self) -> Result<String, Utf8Error> {
+        self.file.write_all(&[0x1d, 0xe1]).unwrap();
+        let mut buffer = [0_u8; 8];
+        self.file.read(&mut buffer[..]).unwrap();
+        let value = std::str::from_utf8(&buffer)?;
+        Ok(value.to_string())
+    }
+
+
+    /// starting with a value in centimeters, calculate nH and nL as follows:
+    /// nH = <cm> / 256
+    /// nL = <cm> - (nH * 256)
+    ///
+    /// So if we wanted to calculated based on 15 meters:
+    /// 15m = 1500cm
+    /// nH = 1500 / 256 = 5
+    /// nL = 1500 - (nH * 256) = 1500 - (5 * 256) = 220
+    ///
+    /// Then convert to hex:
+    /// 5 = 0x05
+    /// 220 = 0xdc
+    pub fn set_paper_end_limit(&mut self) -> io::Result<()> {
+        // TODO: what should we pass in, length in meters and then calculate?
+        let n_l: u8 = 0x00;
+        let n_h: u8 = 0x00;
+        self.file.write_all(&[0x1d, 0xe6, n_h, n_l]).unwrap();
+        Ok(())
+    }
+
+    pub fn paper_loaded(&mut self) -> io::Result<bool> {
+        self.file.write_all(&[0x1d, 0x72, 0x01]).unwrap();
+        let mut buffer = [0_u8; 1];
+        self.file.read(&mut buffer[..]).unwrap();
+        Ok(*(&buffer[0]) == 0x00_u8)
+    }
+
+    // TODO: Flesh this out more
+    // So `0x10, 0x04, n` can get a few different status results:
+    // | n    | Type |
+    // |------|------|
+    // | 0x01 | device status |
+    // | 0x02 | off-line status |
+    // | 0x03 | error status |
+    // | 0x04 | paper roll sensor status |
+    // | 0x11 | print status |
+    // | 0x14 | full status |
+    // | 0x15 | device id |
+    //
+    // We should probably evaluate what we want to get and implement it here
+    // Below is an example using off-line status to get state of paper door
+    pub fn get_status(&mut self) -> Result<String, Utf8Error> {
+        self.file.write_all(&[0x10, 0x04, 0x02]).unwrap();
+        let mut buffer = [0_u8; 1];
+        self.file.read(&mut buffer[..]).unwrap();
+        let status = &buffer[0];
+        let mask = 1<<2;
+        if status & mask != 0 {
+            return Ok("Cover open".to_string());
+        }
+
+
+        Ok("No Errors".to_string())
+    }
+
 }
