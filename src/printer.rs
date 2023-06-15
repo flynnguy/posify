@@ -17,26 +17,26 @@ pub enum TextPosition {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum BarcodeType {
-    UPCA = 0, // or 65?
-    UPCE = 1, // or 66?
-    EAN13 = 2, // or 67?
-    EAN8 = 3, // or 68?
+    UPCA = 0,   // or 65?
+    UPCE = 1,   // or 66?
+    EAN13 = 2,  // or 67?
+    EAN8 = 3,   // or 68?
     CODE39 = 4, // or 69?
-    ITF = 5, // or 70?
+    ITF = 5,    // or 70?
     Code93 = 72,
     Codabar = 6, // or 71?
     Code128 = 73,
-    PDF417 = 10, // or 75?
-    QRCode = 11, // or 76?
+    PDF417 = 10,   // or 75?
+    QRCode = 11,   // or 76?
     Maxicode = 12, // or 77?
-    GS1 = 13, // or 78?
+    GS1 = 13,      // or 78?
 }
 
 pub enum Font {
-    Standard, // As defined in SNBC printer docs
+    Standard,   // As defined in SNBC printer docs
     Compressed, // As defined in SNBC printer docs
-    FontA, // As defined in P3 printer docs
-    FontB, // As defined in P3 printer docs
+    FontA,      // As defined in P3 printer docs
+    FontB,      // As defined in P3 printer docs
 }
 
 #[derive(Clone, Copy)]
@@ -48,7 +48,7 @@ pub enum SupportedPrinters {
 
 pub struct Barcode {
     pub printer: SupportedPrinters,
-    pub width: u8, // 2 <= n <= 6
+    pub width: u8,  // 2 <= n <= 6
     pub height: u8, // 1 <= n <= 255
     pub font: Font,
     // pub code: &str,
@@ -70,19 +70,17 @@ impl Barcode {
                     return Ok([0x1d, 0x77, self.width]);
                 }
                 Ok([0x1d, 0x77, 0x02]) // 2 is the default according to docs
-            },
+            }
             SupportedPrinters::P3 => {
                 if self.width >= 1 && self.width <= 6 {
                     return Ok([0x1d, 0x77, self.width]);
                 }
                 Ok([0x1d, 0x77, 0x03]) // 3 is the default according to docs
-
-            },
-            _ => return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    format!("Command not supported by printer"),
-                )),
-
+            }
+            _ => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Command not supported by printer".to_string(),
+            )),
         }
     }
 
@@ -128,7 +126,6 @@ impl Barcode {
             _ => [0x1d, 0x6b, 0x02], // Default to EAN13?
         }
     }
-
 }
 
 /// Allows for printing to a [::device]
@@ -160,12 +157,17 @@ pub struct Printer {
 }
 
 impl Printer {
-    pub fn new(file: std::fs::File, codec: Option<EncodingRef>, trap: Option<EncoderTrap>, printer: SupportedPrinters) -> Printer {
+    pub fn new(
+        file: std::fs::File,
+        codec: Option<EncodingRef>,
+        trap: Option<EncoderTrap>,
+        printer: SupportedPrinters,
+    ) -> Printer {
         Printer {
-            file: file,
+            file,
             codec: codec.unwrap_or(UTF_8 as EncodingRef),
             trap: trap.unwrap_or(EncoderTrap::Replace),
-            printer: printer,
+            printer,
         }
     }
 
@@ -254,10 +256,10 @@ impl Printer {
         match self.printer {
             SupportedPrinters::SNBC => self.write(&[0x1b, 0x3d, 0x01]),
             SupportedPrinters::P3 => self.write(&[0x1b, 0x3d, 0x01]),
-            _ => return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    format!("Command not supported by printer"),
-                )),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Command not supported by printer".to_string(),
+            )),
         }
     }
     pub fn chain_enable(&mut self) -> io::Result<&mut Self> {
@@ -268,10 +270,10 @@ impl Printer {
         match self.printer {
             SupportedPrinters::SNBC => self.write(&[0x1b, 0x3d, 0x00]),
             SupportedPrinters::P3 => self.write(&[0x1b, 0x3d, 0x02]),
-            _ => return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    format!("Command not supported by printer"),
-                )),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Command not supported by printer".to_string(),
+            )),
         }
     }
     pub fn chain_disable(&mut self) -> io::Result<&mut Self> {
@@ -311,14 +313,13 @@ impl Printer {
     }
 
     pub fn underline_mode(&mut self, mode: Option<&str>) -> io::Result<usize> {
-
         let mode = mode.unwrap_or("OFF");
         let mode_upper = mode.to_uppercase();
         match mode_upper.as_ref() {
-                "OFF" => Ok(self.write(&[0x1b, 0x2d, 0x00])?),
-                "ON" => Ok(self.write(&[0x1b, 0x2d, 0x01])?),
-                "THICK" => Ok(self.write(&[0x1b, 0x2d, 0x02])?),
-                _ => Ok(self.write(&[0x1b, 0x2d, 0x00])?),
+            "OFF" => Ok(self.write(&[0x1b, 0x2d, 0x00])?),
+            "ON" => Ok(self.write(&[0x1b, 0x2d, 0x01])?),
+            "THICK" => Ok(self.write(&[0x1b, 0x2d, 0x02])?),
+            _ => Ok(self.write(&[0x1b, 0x2d, 0x00])?),
         }
     }
     pub fn chain_underline_mode(&mut self, mode: Option<&str>) -> io::Result<&mut Self> {
@@ -360,7 +361,7 @@ impl Printer {
     ///
     /// Default: The default line spacing is approximately 4.23mm (1/6 inches).
     pub fn line_space(&mut self, n: i32) -> io::Result<usize> {
-        if n >= 0 && n <= 255 {
+        if (0..=255).contains(&n) {
             Ok(self.write(&[0x1b, 0x33, n as u8])?)
         } else {
             self.write(&[0x1b, 0x32])
@@ -508,7 +509,7 @@ impl Printer {
         height: u8,
     ) -> io::Result<usize> {
         let mut n = 0;
-        let mut bc = Barcode{
+        let mut bc = Barcode {
             printer: self.printer,
             width,
             height,
@@ -533,7 +534,7 @@ impl Printer {
         if kind == BarcodeType::Code128 {
             // self.write(&[0x7b_u8, 0x41_u8])?; // Code Set A
             self.write(&[0x7b_u8, 0x42_u8])?; // Code Set B
-            // self.write(&[0x7b_u8, 0x43_u8])?; // Code Set C
+                                              // self.write(&[0x7b_u8, 0x43_u8])?; // Code Set C
         }
         self.write(code.as_bytes())?;
         self.write(&[0x00_u8])?; // Need to send NULL to finish
@@ -606,10 +607,10 @@ impl Printer {
         match self.printer {
             SupportedPrinters::SNBC => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00]),
             // p3 seems to only support partial cut
-            _ => return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    format!("Command not supported by printer"),
-                )),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Command not supported by printer".to_string(),
+            )),
         }
     }
 
@@ -621,10 +622,10 @@ impl Printer {
         match self.printer {
             SupportedPrinters::SNBC => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]),
             SupportedPrinters::P3 => self.write(&[0x0a, 0x0a, 0x0a, 0x1b, 0x6d]),
-            _ => return Err(io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    format!("Command not supported by printer"),
-                )),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Command not supported by printer".to_string(),
+            )),
         }
     }
 
@@ -687,7 +688,7 @@ impl Printer {
     pub fn get_serial(&mut self) -> Result<String, Utf8Error> {
         self.file.write_all(&[0x1c, 0xea, 0x52]).unwrap();
         let mut buffer = [0_u8; 16];
-        self.file.read(&mut buffer[..]).unwrap();
+        let _ = self.file.read(&mut buffer[..]).unwrap();
         let value = std::str::from_utf8(&buffer)?;
         Ok(value.to_string())
     }
@@ -696,7 +697,7 @@ impl Printer {
         self.file.write_all(&[0x1d, 0xe2]).unwrap();
         let mut buffer = [0_u8; 16]; // TODO: This is more than enough now... but what about as
                                      // cuts increase?
-        self.file.read(&mut buffer[..]).unwrap();
+        let _ = self.file.read(&mut buffer[..]).unwrap();
         let value = std::str::from_utf8(&buffer)?; // This seems to trim the padding
         Ok(value.to_string())
     }
@@ -704,7 +705,7 @@ impl Printer {
     pub fn get_rom_version(&mut self) -> Result<String, Utf8Error> {
         self.file.write_all(&[0x1d, 0x49, 0x03]).unwrap();
         let mut buffer = [0_u8; 4];
-        self.file.read(&mut buffer[..]).unwrap();
+        let _ = self.file.read(&mut buffer[..]).unwrap();
         let value = std::str::from_utf8(&buffer)?;
         Ok(value.to_string())
     }
@@ -712,7 +713,7 @@ impl Printer {
     pub fn get_power_count(&mut self) -> Result<String, Utf8Error> {
         self.file.write_all(&[0x1d, 0xe5]).unwrap();
         let mut buffer = [0_u8; 8];
-        self.file.read(&mut buffer[..]).unwrap();
+        let _ = self.file.read(&mut buffer[..]).unwrap();
         let value = std::str::from_utf8(&buffer)?;
         Ok(value.to_string())
     }
@@ -720,7 +721,7 @@ impl Printer {
     pub fn get_printed_length(&mut self) -> Result<String, Utf8Error> {
         self.file.write_all(&[0x1d, 0xe3]).unwrap();
         let mut buffer = [0_u8; 8];
-        self.file.read(&mut buffer[..]).unwrap();
+        let _ = self.file.read(&mut buffer[..]).unwrap();
         let value = std::str::from_utf8(&buffer)?;
         Ok(value.to_string())
     }
@@ -728,11 +729,10 @@ impl Printer {
     pub fn get_remaining_paper(&mut self) -> Result<String, Utf8Error> {
         self.file.write_all(&[0x1d, 0xe1]).unwrap();
         let mut buffer = [0_u8; 8];
-        self.file.read(&mut buffer[..]).unwrap();
+        let _ = self.file.read(&mut buffer[..]).unwrap();
         let value = std::str::from_utf8(&buffer)?;
         Ok(value.to_string())
     }
-
 
     /// starting with a value in centimeters, calculate nH and nL as follows:
     /// nH = <cm> / 256
@@ -757,8 +757,8 @@ impl Printer {
     pub fn paper_loaded(&mut self) -> io::Result<bool> {
         self.file.write_all(&[0x1d, 0x72, 0x01]).unwrap();
         let mut buffer = [0_u8; 1];
-        self.file.read(&mut buffer[..]).unwrap();
-        Ok(*(&buffer[0]) == 0x00_u8)
+        let _ = self.file.read(&mut buffer[..]).unwrap();
+        Ok(buffer[0] == 0x00_u8)
     }
 
     // TODO: Flesh this out more
@@ -778,15 +778,13 @@ impl Printer {
     pub fn get_status(&mut self) -> Result<String, Utf8Error> {
         self.file.write_all(&[0x10, 0x04, 0x02]).unwrap();
         let mut buffer = [0_u8; 1];
-        self.file.read(&mut buffer[..]).unwrap();
+        let _ = self.file.read(&mut buffer[..]).unwrap();
         let status = &buffer[0];
-        let mask = 1<<2;
+        let mask = 1 << 2;
         if status & mask != 0 {
             return Ok("Cover open".to_string());
         }
 
-
         Ok("No Errors".to_string())
     }
-
 }
