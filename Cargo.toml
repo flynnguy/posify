@@ -24,6 +24,8 @@ image = "0.24"
 rusb = "0.9"
 thiserror = "1.0.40"
 qrcode =  { version = "0.12", optional = true }
+log = "0.4"
 
 [dev-dependencies]
 tempfile = "2.2"
+env_logger = "0.9"

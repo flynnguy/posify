@@ -187,15 +187,13 @@ impl Printer {
                 return Err(Error::InvalidEndpoints);
             }
         };
-        println!("stat_ep: {:?}", stat_ep);
-        println!("cmd_ep: {:?}", cmd_ep);
 
         match handle.kernel_driver_active(interface.number())? {
             true => {
                 handle.detach_kernel_driver(interface.number())?;
             }
             false => {
-                println!("Kernel driver inactive");
+                log::trace!("Kernel driver inactive");
             }
         }
         let _ = handle.claim_interface(interface.number());
