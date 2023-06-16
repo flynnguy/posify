@@ -528,25 +528,6 @@ impl Printer {
         Ok(n)
     }
 
-    // TODO: I don't think we need this, maybe just write a better function?
-    // pub fn chain_hardware(&mut self, hw: &str) -> Result<&mut Self, Error> {
-    //     self.hardware(hw).map(|_| self)
-    // }
-    // pub fn hardware(&mut self, hw: &str) -> Result<usize, Error> {
-    //     let value = match hw {
-    //         "INIT" => consts::HW_INIT,
-    //         "SELECT" => consts::HW_SELECT,
-    //         "RESET" => consts::HW_RESET,
-    //         _ => {
-    //             return Err(io::Error::new(
-    //                 io::ErrorKind::InvalidData,
-    //                 format!("Invalid hardware command: {}", hw),
-    //             ))
-    //         }
-    //     };
-    //     self.write(value)
-    // }
-
     pub fn chain_barcode(
         &mut self,
         code: &str,
