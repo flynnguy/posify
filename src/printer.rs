@@ -721,13 +721,18 @@ impl Printer {
     }
 
     pub fn get_serial(&mut self) -> Result<String, Error> {
-        self.write(&[0x1c, 0xea, 0x52])?;
-        let mut buffer = [0_u8; 16];
-        let _ = self
-            .handle
-            .read_bulk(self.stat_ep, &mut buffer, self.timeout)?;
-        let value = std::str::from_utf8(&buffer).unwrap();
-        Ok(value.to_string())
+        match self.printer {
+            SupportedPrinters::P3 => {
+                self.write(&[0x1c, 0xea, 0x52])?;
+                let mut buffer = [0_u8; 16];
+                let _ = self
+                    .handle
+                    .read_bulk(self.stat_ep, &mut buffer, self.timeout)?;
+                let value = std::str::from_utf8(&buffer).unwrap();
+                Ok(value.to_string())
+            }
+            _ => Err(Error::Unsupported),
+        }
     }
 
     pub fn get_cut_count(&mut self) -> Result<String, Error> {
