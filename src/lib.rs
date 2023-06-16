@@ -57,6 +57,7 @@
 //! }
 //! ```
 
+pub mod barcode;
 pub mod consts;
 pub mod device;
 pub mod img;
