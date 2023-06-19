@@ -1,35 +1,11 @@
-use std::time::Duration;
-
 use posify::barcode::{BarcodeType, Font, TextPosition};
 use posify::printer::{self, Printer, SupportedPrinters};
 
 fn main() -> Result<(), printer::Error> {
-    let mut vid = 0x0000;
-    let mut pid = 0x0000;
+    let (mfg, vid, pid) = Printer::get_mfg_info().unwrap();
+    println!("{:?}: ({:?}:{:?})", mfg, vid, pid);
 
-    // The following is an example of how to get the vid, pid based on the
-    // manufacturer string. It's easier if you already have the vid/pid
-    // and you can just define them above and remove this whole block
-    // of code
-    for device in rusb::devices().unwrap().iter() {
-        let timeout = Duration::from_millis(200);
-        let device_desc = device.device_descriptor().unwrap();
-        let handle = device.open().unwrap();
-        let language = handle.read_languages(timeout).unwrap()[0];
-        match handle.read_manufacturer_string(language, &device_desc, timeout) {
-            Ok(m) => {
-                if m.starts_with("SNBC") {
-                    vid = device_desc.vendor_id();
-                    pid = device_desc.product_id();
-                } else {
-                    continue;
-                }
-            }
-            Err(_) => continue,
-        }
-    }
-
-    let mut printer = Printer::new(None, None, SupportedPrinters::SNBC, vid, pid)?;
+    let mut printer = Printer::new(None, None, mfg, vid, pid)?;
 
     let _ = printer
         .chain_hwinit()?

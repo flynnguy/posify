@@ -1,7 +1,9 @@
-use posify::barcode::{BarcodeType, Font, TextPosition};
-use posify::printer::{self, Printer, SupportedPrinters};
+use std::error::Error;
 
-fn main() -> Result<(), printer::Error> {
+use posify::barcode::{BarcodeType, Font, TextPosition};
+use posify::printer::{Printer, SupportedPrinters};
+
+fn main() -> Result<(), Box<dyn Error>> {
     let vid: u16 = 0x154f;
     let pid: u16 = 0x0517;
 

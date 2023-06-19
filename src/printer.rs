@@ -16,7 +16,7 @@ pub const TIMEOUT: u64 = 200;
 /// SupportedPrinters enumerates the list of printers that this library knows
 /// about. Should be easy to add your own to this library or you could try
 /// using an existing one if the command set is similar.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum SupportedPrinters {
     /// Tested on the SNBC BTP-R880NPV
     SNBC,
@@ -122,6 +122,30 @@ pub struct Printer {
 }
 
 impl Printer {
+    pub fn get_mfg_info() -> Result<(SupportedPrinters, u16, u16), Box<dyn std::error::Error>> {
+        for device in rusb::devices().unwrap().iter() {
+            let timeout = Duration::from_millis(200);
+            let device_desc = device.device_descriptor().unwrap();
+            let handle = device.open().unwrap();
+            let language = handle.read_languages(timeout).unwrap()[0];
+            let vid: u16 = device_desc.vendor_id();
+            let pid: u16 = device_desc.product_id();
+            match handle.read_manufacturer_string(language, &device_desc, timeout) {
+                Ok(m) => {
+                    if m.starts_with("SNBC") {
+                        return Ok((SupportedPrinters::SNBC, vid, pid));
+                    } else if m.starts_with("Custom SpA") {
+                        return Ok((SupportedPrinters::P3, vid, pid));
+                    } else {
+                        println!("Unknown: {:?}", m);
+                        continue;
+                    }
+                }
+                Err(_) => continue,
+            }
+        }
+        Ok((SupportedPrinters::Unknown, 0x00, 0x00))
+    }
     pub fn new(
         codec: Option<EncodingRef>,
         trap: Option<EncoderTrap>,
