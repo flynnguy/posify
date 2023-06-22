@@ -125,9 +125,19 @@ impl Printer {
     pub fn get_mfg_info() -> Result<(SupportedPrinters, u16, u16), Box<dyn std::error::Error>> {
         for device in rusb::devices().unwrap().iter() {
             let timeout = Duration::from_millis(200);
-            let device_desc = device.device_descriptor().unwrap();
-            let handle = device.open().unwrap();
-            let language = handle.read_languages(timeout).unwrap()[0];
+            let device_desc = match device.device_descriptor() {
+                Ok(d) => d,
+                Err(e) => return Err(Box::new(e)),
+            };
+            let handle = match device.open() {
+                Ok(h) => h,
+                Err(e) => return Err(Box::new(e)),
+            };
+            let languages = match handle.read_languages(timeout) {
+                Ok(l) => l,
+                Err(e) => return Err(Box::new(e)),
+            };
+            let language = languages[0];
             let vid: u16 = device_desc.vendor_id();
             let pid: u16 = device_desc.product_id();
             match handle.read_manufacturer_string(language, &device_desc, timeout) {
