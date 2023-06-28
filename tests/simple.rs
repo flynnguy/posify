@@ -1,36 +1,42 @@
 extern crate tempfile;
 
 extern crate posify;
+use std::error::Error;
 
-use posify::device::File;
-use posify::printer::Printer;
-use tempfile::NamedTempFileOptions;
+use posify::barcode::{BarcodeType, Font, TextPosition};
+use posify::printer::{Printer, SupportedPrinters};
 
 #[test]
 fn simple() {
-    let tempf = NamedTempFileOptions::new().create().unwrap();
+    let vid: u16 = 0x154f;
+    let pid: u16 = 0x0517;
 
-    let file = File::from(tempf);
-    let mut printer = Printer::new(file, None, None);
+    let mut printer = Printer::new(None, None, SupportedPrinters::SNBC, vid, pid).unwrap();
 
     let _ = printer
-        .chain_font("C")
+        .chain_hwinit()
         .unwrap()
-        .chain_align("lt")
+        .chain_align("ct")
         .unwrap()
-        .chain_style("bu")
+        .chain_underline_mode(Some("thick"))
         .unwrap()
-        .chain_size(0, 0)
+        .chain_text("Code128")
         .unwrap()
-        .chain_text("The quick brown fox jumps over the lazy dog")
-        .unwrap()
-        .chain_text("敏捷的棕色狐狸跳过懒狗")
-        .unwrap()
-        .chain_barcode("12345678", "EAN8", "", "", 0, 0)
+        .chain_underline_mode(Some("off"))
         .unwrap()
         .chain_feed(1)
         .unwrap()
-        .chain_cut(false)
+        .chain_barcode(
+            "0123456",
+            BarcodeType::Code128,
+            TextPosition::Below,
+            Font::FontA,
+            2,
+            0x40,
+        )
         .unwrap()
-        .flush();
+        .chain_feed(5)
+        .unwrap()
+        .chain_partial_cut()
+        .unwrap();
 }

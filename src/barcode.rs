@@ -99,16 +99,24 @@ impl Barcode {
             // FontB and Compressed are the same codes, just different printers
             // define them differently so I figured it would be easiest to just
             // define it twice.
+            Font::Standard => [0x1d, 0x66, 0x00],
             Font::Compressed => [0x1d, 0x66, 0x01],
+            Font::FontA => [0x1d, 0x66, 0x00],
             Font::FontB => [0x1d, 0x66, 0x01],
-            _ => [0x1d, 0x66, 0x00], // Default to standard font or FontA
         }
     }
 
     pub fn set_barcode_type(&mut self) -> [u8; 3] {
         match self.kind {
             BarcodeType::EAN13 => [0x1d, 0x6b, 0x02],
-            BarcodeType::Code128 => [0x1d, 0x6b, 0x08],
+            BarcodeType::Code128 => {
+                if self.printer == SupportedPrinters::SNBC {
+                    [0x1d, 0x6b, 0x49]
+                } else {
+                    [0x1d, 0x6b, 0x08]
+                }
+            }
+            // TODO: Add more barcode types
             _ => [0x1d, 0x6b, 0x02], // Default to EAN13?
         }
     }

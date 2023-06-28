@@ -16,7 +16,7 @@ pub const TIMEOUT: u64 = 200;
 /// SupportedPrinters enumerates the list of printers that this library knows
 /// about. Should be easy to add your own to this library or you could try
 /// using an existing one if the command set is similar.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SupportedPrinters {
     /// Tested on the SNBC BTP-R880NPV
     SNBC,
@@ -81,27 +81,6 @@ pub struct UsbInfo {
 }
 
 /// Allows for printing to a [::device]
-/// TODO: This example is outdated
-///
-/// # Example
-/// ```rust
-/// use std::fs::File;
-/// use posify::printer::Printer;
-/// use tempfile::NamedTempFileOptions;
-///
-/// fn main() -> std::Result, Error<()> {
-///     // TODO: Fix this example as NamedTempFileOptions is out of date
-///     let tempf = tempfile::NamedTempFileOptions::new().create().unwrap();
-///     let file = File::from(tempf);
-///     let mut printer = Printer::new(file, None, None, SupportedPrinters::P3);
-///
-///     printer
-///       .chain_size(0,0)?
-///       .chain_text("The quick brown fox jumped over the lazy dog")?
-///       .chain_feed(1)?
-///       .flush()
-/// }
-/// ```
 pub struct Printer {
     codec: EncodingRef,
     trap: EncoderTrap,
@@ -606,10 +585,19 @@ impl Printer {
         // 128A (Code Set A) – ASCII characters 00 to 95 (0–9, A–Z and control codes), special characters, and FNC 1–4
         // 128B (Code Set B) – ASCII characters 32 to 127 (0–9, A–Z, a–z), special characters, and FNC 1–4
         // 128C (Code Set C) – 00–99 (encodes two digits with a single code point) and FNC1
-        if kind == BarcodeType::Code128 {
-            // self.write(&[0x7b_u8, 0x41_u8])?; // Code Set A
-            self.write(&[0x7b_u8, 0x42_u8])?; // Code Set B
-                                              // self.write(&[0x7b_u8, 0x43_u8])?; // Code Set C
+        // SNBC Also requires sending the number of bytes in the Code128 receipt
+        if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::SNBC {
+            let mut code128_bytes: Vec<u8> = vec![0x7b, 0x43]; // Codeset C
+            for byte in code.as_bytes().into_iter() {
+                code128_bytes.push(*byte);
+            }
+
+            let count = code128_bytes.len();
+            code128_bytes.insert(0, count as u8);
+            n += self.write(&code128_bytes)?;
+            return Ok(n);
+        } else if kind == BarcodeType::Code128 {
+            self.write(&[0x7b_u8, 0x43])?; // Code Set C
         }
         self.write(code.as_bytes())?;
         self.write(&[0x00_u8])?; // Need to send NULL to finish
