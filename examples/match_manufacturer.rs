@@ -1,5 +1,5 @@
 use posify::barcode::{BarcodeType, Font, TextPosition};
-use posify::printer::{self, Printer, SupportedPrinters};
+use posify::printer::{self, Printer};
 
 fn main() -> Result<(), printer::Error> {
     let (mfg, vid, pid) = Printer::get_mfg_info().unwrap();

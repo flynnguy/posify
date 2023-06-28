@@ -1,7 +1,6 @@
 extern crate tempfile;
 
 extern crate posify;
-use std::error::Error;
 
 use posify::barcode::{BarcodeType, Font, TextPosition};
 use posify::printer::{Printer, SupportedPrinters};
