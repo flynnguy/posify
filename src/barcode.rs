@@ -32,6 +32,14 @@ pub enum Font {
     FontB,      // As defined in P3 printer docs
 }
 
+#[derive(thiserror::Error, Debug, PartialEq)]
+pub enum CodeCError {
+    #[error("Not a Number")]
+    NotANumber,
+    #[error("Length not divisible by two")]
+    InvalidLength,
+}
+
 pub struct Barcode {
     pub printer: SupportedPrinters,
     pub width: u8,  // 2 <= n <= 6
@@ -119,5 +127,62 @@ impl Barcode {
             // TODO: Add more barcode types
             _ => [0x1d, 0x6b, 0x02], // Default to EAN13?
         }
+    }
+
+    // to_codeset_c converts a string of numbers to the u8 value
+    // of pairs of numbers according to the Code Set C
+    //
+    // ex:
+    // "00" => 0x00 (Decimal 0)
+    // "10" => 0x0A (Decimal 10)
+    pub fn to_codeset_c(barcode: String) -> Result<Vec<u8>, CodeCError> {
+        // Barcode can only contain digits, no alpha chars
+        if !barcode.chars().all(|x| x.is_ascii_digit()) {
+            return Err(CodeCError::NotANumber);
+        }
+        // Length must be divisible by 2
+        // alternatively we might be able to just prepend a 0?
+        if barcode.len() % 2 != 0 {
+            return Err(CodeCError::InvalidLength);
+        }
+
+        // Split digit pairs into individual Vec items
+        let mut split: Vec<&str> = Vec::new();
+        for (i, _) in barcode.as_bytes().iter().enumerate() {
+            if i % 2 == 0 {
+                split.push(Some(&barcode[i..i + 2]).unwrap());
+            }
+        }
+        // Now convert string pairs to numeric equiv in codeset c
+        let mut converted: Vec<u8> = Vec::new();
+        for pair in split {
+            let code: u8 = pair.parse().unwrap();
+            converted.push(code);
+        }
+
+        Ok(converted)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn codeset_c_tests() {
+        let resp = Barcode::to_codeset_c("foo".to_string());
+        assert_eq!(resp, Err(CodeCError::NotANumber));
+
+        let resp = Barcode::to_codeset_c("123".to_string());
+        assert_eq!(resp, Err(CodeCError::InvalidLength));
+
+        let resp = Barcode::to_codeset_c("00".to_string()).unwrap();
+        assert_eq!(resp, vec![0x00_u8]);
+
+        let resp = Barcode::to_codeset_c("01".to_string()).unwrap();
+        assert_eq!(resp, vec![0x01_u8]);
+
+        let resp = Barcode::to_codeset_c("1234".to_string()).unwrap();
+        assert_eq!(resp, vec![0x0c_u8, 0x22]);
     }
 }

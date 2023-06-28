@@ -587,9 +587,18 @@ impl Printer {
         // 128C (Code Set C) – 00–99 (encodes two digits with a single code point) and FNC1
         // SNBC Also requires sending the number of bytes in the Code128 receipt
         if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::SNBC {
-            let mut code128_bytes: Vec<u8> = vec![0x7b, 0x43]; // Codeset C
-            for byte in code.as_bytes().into_iter() {
-                code128_bytes.push(*byte);
+            let mut code128_bytes: Vec<u8> = vec![0x7b]; // Next byte will set the code set
+            if code.len() % 2 == 0 && code.chars().all(|x| x.is_ascii_digit()) {
+                // even number of chars and they are all numbers, we can use Code Set C
+                code128_bytes.push(0x43); // Codeset C
+                let mut converted: Vec<u8> = Barcode::to_codeset_c(code.to_string()).unwrap();
+                code128_bytes.append(&mut converted);
+            } else {
+                // otherwise we just push the characters which match up with Code Set B
+                code128_bytes.push(0x42); // Codeset B
+                for byte in code.as_bytes().iter() {
+                    code128_bytes.push(*byte);
+                }
             }
 
             let count = code128_bytes.len();
