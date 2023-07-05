@@ -414,6 +414,20 @@ impl Printer {
         self.underline_mode(mode).map(|_| self)
     }
 
+    pub fn chain_hr(&mut self, width: usize) -> Result<&mut Self, Error> {
+        self.hr(width).map(|_| self)
+    }
+
+    /// hr generates a line of width <width>
+    pub fn hr(&mut self, width: usize) -> Result<usize, Error> {
+        let mut n_bytes = 0;
+        let width = if width < 1 { 1 } else { width }; // 0 would be invalid, so set to 1
+        let line = vec![0xc4; width];
+        n_bytes += self.write(&line)?;
+        n_bytes += self.write("\n".as_ref())?;
+        Ok(n_bytes)
+    }
+
     /// ESC 2/ESC 3 n - Set line spacing
     ///
     /// ESC 2 (0x1b, 0x32) Sets line spacing to default
