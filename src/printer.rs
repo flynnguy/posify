@@ -428,6 +428,14 @@ impl Printer {
         Ok(n_bytes)
     }
 
+    pub fn chain_char_size(&mut self, height: u8) -> Result<&mut Self, Error> {
+        self.char_size(height).map(|_| self)
+    }
+
+    pub fn char_size(&mut self, height: u8) -> Result<usize, Error> {
+        self.write(&[0x1d, 0x21, height])
+    }
+
     /// ESC 2/ESC 3 n - Set line spacing
     ///
     /// ESC 2 (0x1b, 0x32) Sets line spacing to default
