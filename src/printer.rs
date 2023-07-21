@@ -1,5 +1,6 @@
 use std::io;
 
+use std::collections::VecDeque;
 use std::time::Duration;
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -47,6 +48,9 @@ pub enum Error {
 
     #[error("Operation timeout")]
     Timeout,
+
+    #[error("Printer Not Found")]
+    NotFound,
 
     #[error("Unsupported printer")]
     Unsupported,
@@ -143,7 +147,7 @@ impl Printer {
         pid: u16,
     ) -> Result<Self, Error> {
         // Iterate over the devices to find the printer
-        let mut matches: Vec<_> = rusb::devices()?
+        let mut matches: VecDeque<_> = rusb::devices()?
             .iter()
             // Filter out the devices that match the vendor_id and product_id (should only be 1)
             .filter_map(|d| {
@@ -160,7 +164,10 @@ impl Printer {
                 }
             })
             .collect();
-        let (device, descriptor) = matches.remove(0);
+        let (device, descriptor) = match matches.pop_front() {
+            Some((device, descriptor)) => (device, descriptor),
+            None => return Err(Error::NotFound),
+        };
 
         let mut handle = device.open()?;
 
