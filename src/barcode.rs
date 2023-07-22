@@ -59,7 +59,7 @@ impl Barcode {
         //
         // Currently limiting to 1 <= n <= 6 but we might be able to change that
         match self.printer {
-            SupportedPrinters::SNBC => {
+            SupportedPrinters::SNBC | SupportedPrinters::Epic => {
                 if self.width >= 2 && self.width <= 6 {
                     return Ok([0x1d, 0x77, self.width]);
                 }
@@ -70,12 +70,6 @@ impl Barcode {
                     return Ok([0x1d, 0x77, self.width]);
                 }
                 Ok([0x1d, 0x77, 0x03]) // 3 is the default according to docs
-            }
-            SupportedPrinters::Epic => {
-                if self.width >= 1 && self.width <= 6 {
-                    return Ok([0x1d,0x77,0x01]);
-                }
-                Ok([0x1d, 0x77, 0x02]) // 3 is the default according to docs
             }
             _ => Err(io::Error::new(
                 io::ErrorKind::Unsupported,
