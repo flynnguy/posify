@@ -71,6 +71,12 @@ impl Barcode {
                 }
                 Ok([0x1d, 0x77, 0x03]) // 3 is the default according to docs
             }
+            SupportedPrinters::Epic => {
+                if self.width >= 1 && self.width <= 6 {
+                    return Ok([0x1d,0x77,0x01]);
+                }
+                Ok([0x1d, 0x77, 0x02]) // 3 is the default according to docs
+            }
             _ => Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 "Command not supported by printer".to_string(),
