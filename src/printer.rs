@@ -12,7 +12,7 @@ use crate::consts;
 use crate::img::Image;
 
 /// Timeout for sending/receiving USB messages
-pub const TIMEOUT: u64 = 200;
+pub const TIMEOUT: u64 = 400;
 
 /// SupportedPrinters enumerates the list of printers that this library knows
 /// about. Should be easy to add your own to this library or you could try
@@ -23,6 +23,7 @@ pub enum SupportedPrinters {
     SNBC,
     /// Tested on the Custom P3 printer
     P3,
+    Epic,
     Unknown, // Adding to allow _ no not raise warnings to make adding printers easier
 }
 
@@ -129,7 +130,10 @@ impl Printer {
                         return Ok((SupportedPrinters::SNBC, vid, pid));
                     } else if m.starts_with("Custom SpA") {
                         return Ok((SupportedPrinters::P3, vid, pid));
-                    } else {
+                    } else if m.starts_with("TransAct") {
+                        return Ok((SupportedPrinters::Epic, vid, pid));
+                    }
+                    else {
                         println!("Unknown: {:?}", m);
                         continue;
                     }
@@ -634,7 +638,12 @@ impl Printer {
             code128_bytes.insert(0, count as u8);
             n += self.write(&code128_bytes)?;
             return Ok(n);
-        } else if kind == BarcodeType::Code128 {
+        } else if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::Epic {
+            self.write(&[0x7b, 0x41])?; // No docs to specify what the Epson mode actually does
+                                        // But this is probably codeset A. Using codeset C
+                                        // causes the text below the barcode to be corrupted
+        }
+        else if kind == BarcodeType::Code128 {
             self.write(&[0x7b_u8, 0x43])?; // Code Set C
         }
         self.write(code.as_bytes())?;
@@ -706,7 +715,7 @@ impl Printer {
 
     pub fn full_cut(&mut self) -> Result<usize, Error> {
         match self.printer {
-            SupportedPrinters::SNBC => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00]),
+            SupportedPrinters::SNBC | SupportedPrinters::Epic => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00]),
             // p3 seems to only support partial cut
             _ => Err(Error::Unsupported),
         }
@@ -718,7 +727,7 @@ impl Printer {
 
     pub fn partial_cut(&mut self) -> Result<usize, Error> {
         match self.printer {
-            SupportedPrinters::SNBC => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]),
+            SupportedPrinters::SNBC | SupportedPrinters::Epic => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]),
             SupportedPrinters::P3 => self.write(&[0x0a, 0x0a, 0x0a, 0x1b, 0x6d]),
             _ => Err(Error::Unsupported),
         }

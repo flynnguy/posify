@@ -71,6 +71,12 @@ impl Barcode {
                 }
                 Ok([0x1d, 0x77, 0x03]) // 3 is the default according to docs
             }
+            SupportedPrinters::Epic => {
+                Ok([0x1d,0x77,0x1]) // 2 is the default. Setting the width to 2
+                                    // with a long code128 barcode causes the
+                                    // barcode to exceed the print area and not
+                                    // print
+            }
             _ => Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 "Command not supported by printer".to_string(),
