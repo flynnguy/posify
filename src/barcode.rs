@@ -59,7 +59,7 @@ impl Barcode {
         //
         // Currently limiting to 1 <= n <= 6 but we might be able to change that
         match self.printer {
-            SupportedPrinters::SNBC | SupportedPrinters::Epic => {
+            SupportedPrinters::SNBC => {
                 if self.width >= 2 && self.width <= 6 {
                     return Ok([0x1d, 0x77, self.width]);
                 }
@@ -70,6 +70,12 @@ impl Barcode {
                     return Ok([0x1d, 0x77, self.width]);
                 }
                 Ok([0x1d, 0x77, 0x03]) // 3 is the default according to docs
+            }
+            SupportedPrinters::Epic => {
+                Ok([0x1d,0x77,0x1]) // 2 is the default. Setting the width to 2
+                                    // with a long code128 barcode causes the
+                                    // barcode to exceed the print area and not
+                                    // print
             }
             _ => Err(io::Error::new(
                 io::ErrorKind::Unsupported,

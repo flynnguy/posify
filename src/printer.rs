@@ -130,7 +130,7 @@ impl Printer {
                         return Ok((SupportedPrinters::SNBC, vid, pid));
                     } else if m.starts_with("Custom SpA") {
                         return Ok((SupportedPrinters::P3, vid, pid));
-                    } else if m.starts_with("Transact") {
+                    } else if m.starts_with("TransAct") {
                         return Ok((SupportedPrinters::Epic, vid, pid));
                     }
                     else {
@@ -638,7 +638,12 @@ impl Printer {
             code128_bytes.insert(0, count as u8);
             n += self.write(&code128_bytes)?;
             return Ok(n);
-        } else if kind == BarcodeType::Code128 {
+        } else if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::Epic {
+            self.write(&[0x7b, 0x41])?; // No docs to specify what the Epson mode actually does
+                                        // But this is probably codeset A. Using codeset C
+                                        // causes the text below the barcode to be corrupted
+        }
+        else if kind == BarcodeType::Code128 {
             self.write(&[0x7b_u8, 0x43])?; // Code Set C
         }
         self.write(code.as_bytes())?;
