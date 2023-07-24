@@ -12,7 +12,7 @@ use crate::consts;
 use crate::img::Image;
 
 /// Timeout for sending/receiving USB messages
-pub const TIMEOUT: u64 = 2000;
+pub const TIMEOUT: u64 = 400;
 
 /// SupportedPrinters enumerates the list of printers that this library knows
 /// about. Should be easy to add your own to this library or you could try
