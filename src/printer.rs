@@ -140,7 +140,7 @@ impl Printer {
                 Err(_) => continue,
             }
         }
-        Ok((SupportedPrinters::Unknown, 0x00, 0x00))
+        Err(Box::new(io::Error::new(io::ErrorKind::Other, "Error no supported printers found")))
     }
     pub fn new(
         codec: Option<EncodingRef>,
