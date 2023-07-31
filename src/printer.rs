@@ -111,15 +111,15 @@ impl Printer {
             let timeout = Duration::from_millis(200);
             let device_desc = match device.device_descriptor() {
                 Ok(d) => d,
-                Err(e) => return Err(Box::new(e)),
+                Err(_) => continue,
             };
             let handle = match device.open() {
                 Ok(h) => h,
-                Err(e) => return Err(Box::new(e)),
+                Err(_) => continue,
             };
             let languages = match handle.read_languages(timeout) {
                 Ok(l) => l,
-                Err(e) => return Err(Box::new(e)),
+                Err(_) => continue,
             };
             let language = languages[0];
             let vid: u16 = device_desc.vendor_id();
@@ -134,14 +134,13 @@ impl Printer {
                         return Ok((SupportedPrinters::Epic, vid, pid));
                     }
                     else {
-                        println!("Unknown: {:?}", m);
                         continue;
                     }
                 }
                 Err(_) => continue,
             }
         }
-        Ok((SupportedPrinters::Unknown, 0x00, 0x00))
+        Err(Box::new(io::Error::new(io::ErrorKind::Unsupported, "Error no supported printers found")))
     }
     pub fn new(
         codec: Option<EncodingRef>,
