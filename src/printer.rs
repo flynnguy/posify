@@ -67,7 +67,10 @@ pub enum Error {
 
     #[error("Unsupported printer")]
     Unsupported,
+}
 
+#[derive(thiserror::Error, Clone, Copy, Debug, PartialEq)]
+pub enum StatusError {
     #[error("Printer Offline")]
     Offline,
 
@@ -938,10 +941,10 @@ impl Printer {
     //
     // We should probably evaluate what we want to get and implement it here
     // Below is an example using off-line status to get state of paper door
-    pub fn get_status(&mut self) -> Result<(), Vec<Error>> {
+    pub fn get_status(&mut self) -> Result<(), Vec<StatusError>> {
         let mut buffer = [0_u8; 16];
         self.read(&mut buffer).unwrap();
-        let mut errors: Vec<Error> = Vec::new();
+        let mut errors: Vec<StatusError> = Vec::new();
 
         // println!("Status[0]: {:0>8b}", buffer[0]);
         // println!("Status[1]: {:0>8b}", buffer[1]);
@@ -950,32 +953,32 @@ impl Printer {
 
         // First Byte
         if ((buffer[0] >> OFFLINE_BIT) & 1) == 1 {
-            errors.push(Error::Offline);
+            errors.push(StatusError::Offline);
         }
         if ((buffer[0] >> DOOR_STATUS_BIT) & 1) == 1 {
-            errors.push(Error::DoorOpen);
+            errors.push(StatusError::DoorOpen);
         }
         if ((buffer[0] >> PAPER_FEED_BIT) & 1) == 1 {
-            errors.push(Error::PaperFeed);
+            errors.push(StatusError::PaperFeed);
         }
 
         // Second Byte
         if ((buffer[1] >> AUTO_CUTTER_BIT) & 1) == 1 {
-            errors.push(Error::AutoCutter);
+            errors.push(StatusError::AutoCutter);
         }
         if ((buffer[1] >> RECOVERABLE_BIT) & 1) == 1 {
-            errors.push(Error::Recoverable);
+            errors.push(StatusError::Recoverable);
         }
         if ((buffer[1] >> AUTOMATIC_RECOVERABLE_BIT) & 1) == 1 {
-            errors.push(Error::AutomaticallyRecoverable);
+            errors.push(StatusError::AutomaticallyRecoverable);
         }
 
         // Third Byte
         if ((buffer[2] >> PAPER_NEAR_END_BIT) & 0b11) == 0b11 {
-            errors.push(Error::PaperNearEnd);
+            errors.push(StatusError::PaperNearEnd);
         }
         if ((buffer[2] >> PAPER_BIT) & 0b11) == 0b11 {
-            errors.push(Error::PaperEnd);
+            errors.push(StatusError::PaperEnd);
         }
         // Fourth byte seems to be unused
         if !errors.is_empty() {
