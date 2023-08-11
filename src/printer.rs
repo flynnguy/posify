@@ -14,6 +14,18 @@ use crate::img::Image;
 /// Timeout for sending/receiving USB messages
 pub const TIMEOUT: u64 = 400;
 
+// First Byte
+const OFFLINE_BIT: u8 = 3;
+const DOOR_STATUS_BIT: u8 = 5;
+const PAPER_FEED_BIT: u8 = 6;
+// Second Byte
+const AUTO_CUTTER_BIT: u8 = 3;
+const RECOVERABLE_BIT: u8 = 5;
+const AUTOMATIC_RECOVERABLE_BIT: u8 = 6;
+// Third Byte
+const PAPER_NEAR_END_BIT: u8 = 0;
+const PAPER_BIT: u8 = 2;
+
 /// SupportedPrinters enumerates the list of printers that this library knows
 /// about. Should be easy to add your own to this library or you could try
 /// using an existing one if the command set is similar.
@@ -55,6 +67,33 @@ pub enum Error {
 
     #[error("Unsupported printer")]
     Unsupported,
+}
+
+#[derive(thiserror::Error, Clone, Copy, Debug, PartialEq)]
+pub enum StatusError {
+    #[error("Printer Offline")]
+    Offline,
+
+    #[error("Door Opened")]
+    DoorOpen,
+
+    #[error("Paper Feed Active")]
+    PaperFeed,
+
+    #[error("Auto cutter error")]
+    AutoCutter,
+
+    #[error("Recoverable error")]
+    Recoverable,
+
+    #[error("Automatically Recoverable error")]
+    AutomaticallyRecoverable,
+
+    #[error("Paper is near end")]
+    PaperNearEnd,
+
+    #[error("Paper end")]
+    PaperEnd,
 }
 
 impl From<std::io::Error> for Error {
@@ -132,15 +171,17 @@ impl Printer {
                         return Ok((SupportedPrinters::P3, vid, pid));
                     } else if m.starts_with("TransAct") {
                         return Ok((SupportedPrinters::Epic, vid, pid));
-                    }
-                    else {
+                    } else {
                         continue;
                     }
                 }
                 Err(_) => continue,
             }
         }
-        Err(Box::new(io::Error::new(io::ErrorKind::Unsupported, "Error no supported printers found")))
+        Err(Box::new(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Error no supported printers found",
+        )))
     }
     pub fn new(
         codec: Option<EncodingRef>,
@@ -270,7 +311,7 @@ impl Printer {
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err.to_string()))
     }
 
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
+    pub fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
         let n_bytes = self.handle.write_bulk(self.cmd_ep, buf, self.timeout)?;
         if n_bytes != buf.len() {
             return Err(Error::Timeout);
@@ -641,8 +682,7 @@ impl Printer {
             self.write(&[0x7b, 0x41])?; // No docs to specify what the Epson mode actually does
                                         // But this is probably codeset A. Using codeset C
                                         // causes the text below the barcode to be corrupted
-        }
-        else if kind == BarcodeType::Code128 {
+        } else if kind == BarcodeType::Code128 {
             self.write(&[0x7b_u8, 0x43])?; // Code Set C
         }
         self.write(code.as_bytes())?;
@@ -714,7 +754,9 @@ impl Printer {
 
     pub fn full_cut(&mut self) -> Result<usize, Error> {
         match self.printer {
-            SupportedPrinters::SNBC | SupportedPrinters::Epic => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00]),
+            SupportedPrinters::SNBC | SupportedPrinters::Epic => {
+                self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x00])
+            }
             // p3 seems to only support partial cut
             _ => Err(Error::Unsupported),
         }
@@ -726,7 +768,9 @@ impl Printer {
 
     pub fn partial_cut(&mut self) -> Result<usize, Error> {
         match self.printer {
-            SupportedPrinters::SNBC | SupportedPrinters::Epic => self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01]),
+            SupportedPrinters::SNBC | SupportedPrinters::Epic => {
+                self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01])
+            }
             SupportedPrinters::P3 => self.write(&[0x0a, 0x0a, 0x0a, 0x1b, 0x6d]),
             _ => Err(Error::Unsupported),
         }
@@ -897,18 +941,51 @@ impl Printer {
     //
     // We should probably evaluate what we want to get and implement it here
     // Below is an example using off-line status to get state of paper door
-    pub fn get_status(&mut self) -> Result<String, Error> {
-        self.write(&[0x10, 0x04, 0x02]).unwrap();
+    pub fn get_status(&mut self) -> Result<(), Vec<StatusError>> {
         let mut buffer = [0_u8; 16];
+        self.read(&mut buffer).unwrap();
+        let mut errors: Vec<StatusError> = Vec::new();
 
-        self.read(&mut buffer)?;
-        let status = &buffer[0];
-        let mask = 1 << 2;
-        if status & mask != 0 {
-            return Ok("Cover open".to_string());
+        // println!("Status[0]: {:0>8b}", buffer[0]);
+        // println!("Status[1]: {:0>8b}", buffer[1]);
+        // println!("Status[2]: {:0>8b}", buffer[2]);
+        // println!("Status[3]: {:0>8b}", buffer[3]);
+
+        // First Byte
+        if ((buffer[0] >> OFFLINE_BIT) & 1) == 1 {
+            errors.push(StatusError::Offline);
+        }
+        if ((buffer[0] >> DOOR_STATUS_BIT) & 1) == 1 {
+            errors.push(StatusError::DoorOpen);
+        }
+        if ((buffer[0] >> PAPER_FEED_BIT) & 1) == 1 {
+            errors.push(StatusError::PaperFeed);
         }
 
-        Ok("No Errors".to_string())
+        // Second Byte
+        if ((buffer[1] >> AUTO_CUTTER_BIT) & 1) == 1 {
+            errors.push(StatusError::AutoCutter);
+        }
+        if ((buffer[1] >> RECOVERABLE_BIT) & 1) == 1 {
+            errors.push(StatusError::Recoverable);
+        }
+        if ((buffer[1] >> AUTOMATIC_RECOVERABLE_BIT) & 1) == 1 {
+            errors.push(StatusError::AutomaticallyRecoverable);
+        }
+
+        // Third Byte
+        if ((buffer[2] >> PAPER_NEAR_END_BIT) & 0b11) == 0b11 {
+            errors.push(StatusError::PaperNearEnd);
+        }
+        if ((buffer[2] >> PAPER_BIT) & 0b11) == 0b11 {
+            errors.push(StatusError::PaperEnd);
+        }
+        // Fourth byte seems to be unused
+        if !errors.is_empty() {
+            return Err(errors);
+        }
+
+        Ok(())
     }
 
     pub fn read(&mut self, buf: &mut [u8; 16]) -> Result<(), Error> {

@@ -1,11 +1,8 @@
 [package]
 name = "posify"
-version = "0.6.5"
+version = "0.6.6"
 description = """
 An thermal printer driver for Rust
-
-## Minimum Rust version policy (MSRV)
-This crate's minimum supported rustc version is 1.46.0.
 """
 readme = "README.md"
 keywords = ["ESC", "POS", "p3", "snbc", "printer"]
