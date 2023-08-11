@@ -69,7 +69,7 @@ pub enum Error {
     Unsupported,
 }
 
-#[derive(thiserror::Error, Clone, Copy, Debug, PartialEq)]
+#[derive(std::cmp::Eq, thiserror::Error, Clone, Copy, Hash, Debug, PartialEq)]
 pub enum StatusError {
     #[error("Printer Offline")]
     Offline,
