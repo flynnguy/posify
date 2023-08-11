@@ -53,7 +53,6 @@ pub const TXT_ALIGN_RT: &[u8] = b"\x1b\x61\x02"; // Right justification
 pub const BARCODE_FONT_A: &[u8] = b"\x1d\x66\x00"; // Font type A for HRI barcode chars
 pub const BARCODE_FONT_B: &[u8] = b"\x1d\x66\x01"; // Font type B for HRI barcode chars
 
-
 // .CODE2D_FORMAT
 pub const TYPE_PDF417: &[u8] = b"\x1dZ\x00"; // = GS + 'Z' + '\x00'
 pub const TYPE_DATAMATRIX: &[u8] = b"\x1dZ\x01"; // = GS + 'Z' + '\x01'
