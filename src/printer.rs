@@ -175,7 +175,16 @@ impl Printer {
                         continue;
                     }
                 }
-                Err(_) => continue,
+                Err(_) => {
+                    // The SNBC BTP-R880NP 154f:154f doesn't have any manufacturer info
+                    // vendor_id match is better than name because vendor_ids are registered
+                    // http://www.linux-usb.org/usb.ids
+                    if vid == 0x154f {
+                        return Ok((SupportedPrinters::SNBC, vid, pid));
+                    } else {
+                        continue;
+                    }
+                }
             }
         }
         Err(Box::new(io::Error::new(
