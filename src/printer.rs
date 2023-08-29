@@ -71,6 +71,12 @@ pub enum Error {
 
 #[derive(std::cmp::Eq, thiserror::Error, Clone, Copy, Hash, Debug, PartialEq)]
 pub enum StatusError {
+    #[error("Communication Error")]
+    Communication,
+
+    #[error("Printer back online")]
+    Online,
+
     #[error("Printer Offline")]
     Offline,
 
@@ -942,18 +948,22 @@ impl Printer {
     // We should probably evaluate what we want to get and implement it here
     // Below is an example using off-line status to get state of paper door
     pub fn get_status(&mut self) -> Result<(), Vec<StatusError>> {
-        let mut buffer = [0_u8; 16];
-        self.read(&mut buffer).unwrap();
         let mut errors: Vec<StatusError> = Vec::new();
 
-        // println!("Status[0]: {:0>8b}", buffer[0]);
-        // println!("Status[1]: {:0>8b}", buffer[1]);
-        // println!("Status[2]: {:0>8b}", buffer[2]);
-        // println!("Status[3]: {:0>8b}", buffer[3]);
+        let mut buffer = [0_u8; 16];
+        match self.read(&mut buffer) {
+            Ok(_) => (),
+            Err(_) => {
+                errors.push(StatusError::Communication);
+                return Err(errors);
+            }
+        }
 
         // First Byte
         if ((buffer[0] >> OFFLINE_BIT) & 1) == 1 {
             errors.push(StatusError::Offline);
+        } else {
+            errors.push(StatusError::Online);
         }
         if ((buffer[0] >> DOOR_STATUS_BIT) & 1) == 1 {
             errors.push(StatusError::DoorOpen);
@@ -981,6 +991,7 @@ impl Printer {
             errors.push(StatusError::PaperEnd);
         }
         // Fourth byte seems to be unused
+
         if !errors.is_empty() {
             return Err(errors);
         }
