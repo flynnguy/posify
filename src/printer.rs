@@ -169,6 +169,14 @@ impl Printer {
             let language = languages[0];
             let vid: u16 = device_desc.vendor_id();
             let pid: u16 = device_desc.product_id();
+            let ids = (vid, pid);
+            // SNBC in API mode doesn't have a MFG or Product string to match
+            // so we'll add a section to match on vid/pid
+            // Should we move all of the matches here?
+            match ids {
+                (0x154f, 0x154f) => return Ok((SupportedPrinters::SNBC, vid, pid)),
+                _ => (),
+            }
             match handle.read_manufacturer_string(language, &device_desc, timeout) {
                 Ok(m) => {
                     if m.starts_with("SNBC") {
@@ -287,25 +295,20 @@ impl Printer {
     pub fn info(&mut self) -> Result<UsbInfo, Error> {
         let languages = self.handle.read_languages(self.timeout)?;
         let language = languages[0];
-        // let active_config = self.handle.active_configuration()?;
-        // println!("Active Config: {:?}", active_config);
 
-        let manufacturer =
-            self.handle
-                .read_manufacturer_string(language, &self.descriptor, self.timeout)?;
+        let manufacturer = self
+            .handle
+            .read_manufacturer_string(language, &self.descriptor, self.timeout)
+            .unwrap_or("".to_string());
         let product = self
             .handle
-            .read_product_string(language, &self.descriptor, self.timeout)?;
-        // Serial is pretty useless on these printers and doesn't work for SNBC
-        // let serial =
-        //     self.handle
-        //         .read_serial_number_string(language, &self.descriptor, self.timeout)?;
+            .read_product_string(language, &self.descriptor, self.timeout)
+            .unwrap_or("".to_string());
         Ok(UsbInfo {
             vendor_id: self.vid,
             product_id: self.pid,
             manufacturer,
             product,
-            // serial,
         })
     }
 
