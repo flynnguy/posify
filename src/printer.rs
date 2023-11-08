@@ -1007,7 +1007,7 @@ impl Printer {
         Ok(())
     }
 
-    pub fn has_asb_capability(self) -> bool {
+    pub fn has_asb_capability(&self) -> bool {
         match self.printer {
             SupportedPrinters::SNBC => true,
             _ => false,
