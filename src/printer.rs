@@ -1006,4 +1006,11 @@ impl Printer {
         let _ = self.handle.read_bulk(self.stat_ep, buf, self.timeout)?;
         Ok(())
     }
+
+    pub fn has_asb_capability(self) -> bool {
+        match self.printer {
+            SupportedPrinters::SNBC => true,
+            _ => false,
+        }
+    }
 }
