@@ -14,6 +14,7 @@ use crate::img::Image;
 /// Timeout for sending/receiving USB messages
 pub const TIMEOUT: u64 = 400;
 
+// SNBC
 // First Byte
 const OFFLINE_BIT: u8 = 3;
 const DOOR_STATUS_BIT: u8 = 5;
@@ -25,6 +26,16 @@ const AUTOMATIC_RECOVERABLE_BIT: u8 = 6;
 // Third Byte
 const PAPER_NEAR_END_BIT: u8 = 0;
 const PAPER_BIT: u8 = 2;
+
+// EPIC 880
+const EPIC_STATUS_BYTE_0: i32 = 0;
+const EPIC_STATUS_BYTE_1: i32 = 1;
+const EPIC_STATUS_BYTE_2: i32 = 2;
+const EPIC_STATUS_BYTE_3: i32 = 3;
+const EPIC_STATUS_OFFLINE_BIT: i32 = 3;
+const EPIC_STATUS_COVER_OPEN_BIT: i32 = 2;
+const EPIC_STATUS_PAPER_END_BIT: i32 = 5;
+const EPIC_STATUS_AUTO_CUTTER_BIT: i32 = 3;
 
 /// SupportedPrinters enumerates the list of printers that this library knows
 /// about. Should be easy to add your own to this library or you could try
@@ -1022,16 +1033,16 @@ impl Printer {
                     }
                     i += 1;
                 }
-                if data_in[0] >> 3 == 1 {
+                if data_in[EPIC_STATUS_BYTE_0] >> EPIC_STATUS_OFFLINE_BIT  == 1 {
                     errors.push(StatusError::Offline)
                 };
-                if data_in[1] >> 2 == 1 {
+                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_COVER_OPEN_BIT  == 1 {
                     errors.push(StatusError::DoorOpen)
                 };
-                if data_in[1] >> 5 == 1 {
+                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_PAPER_END_BIT  == 1 {
                     errors.push(StatusError::PaperEnd)
                 };
-                if data_in[2] >> 3 == 1 {
+                if data_in[EPIC_STATUS_BYTE_2] >> EPIC_STATUS_AUTO_CUTTER_BIT  == 1 {
                     errors.push(StatusError::AutoCutter)
                 };
             }
