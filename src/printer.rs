@@ -28,10 +28,9 @@ const PAPER_NEAR_END_BIT: u8 = 0;
 const PAPER_BIT: u8 = 2;
 
 // EPIC 880
-const EPIC_STATUS_BYTE_0: i32 = 0;
-const EPIC_STATUS_BYTE_1: i32 = 1;
-const EPIC_STATUS_BYTE_2: i32 = 2;
-const EPIC_STATUS_BYTE_3: i32 = 3;
+const EPIC_STATUS_BYTE_0: usize = 0;
+const EPIC_STATUS_BYTE_1: usize = 1;
+const EPIC_STATUS_BYTE_2: usize = 2;
 const EPIC_STATUS_OFFLINE_BIT: i32 = 3;
 const EPIC_STATUS_COVER_OPEN_BIT: i32 = 2;
 const EPIC_STATUS_PAPER_END_BIT: i32 = 5;
