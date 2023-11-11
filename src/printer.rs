@@ -952,59 +952,84 @@ impl Printer {
     // Below is an example using off-line status to get state of paper door
     pub fn get_status(&mut self) -> Result<(), Vec<StatusError>> {
         let mut errors: Vec<StatusError> = Vec::new();
-
         let mut buffer = [0_u8; 16];
-        match self.read(&mut buffer) {
-            Ok(_) => (),
-            Err(_) => {
-                errors.push(StatusError::Communication);
-                return Err(errors);
+
+        match self.printer {
+            SupportedPrinters::SNBC => {
+                if self.printer == SupportedPrinters::SNBC {
+                    match self.read(&mut buffer) {
+                        Ok(_) => (),
+                        Err(_) => {
+                            errors.push(StatusError::Communication);
+                            return Err(errors);
+                        }
+                    }
+
+                    // First Byte
+                    if ((buffer[0] >> OFFLINE_BIT) & 1) == 1 {
+                        errors.push(StatusError::Offline);
+                    } else {
+                        errors.push(StatusError::Online);
+                    }
+                    if ((buffer[0] >> DOOR_STATUS_BIT) & 1) == 1 {
+                        errors.push(StatusError::DoorOpen);
+                    }
+                    if ((buffer[0] >> PAPER_FEED_BIT) & 1) == 1 {
+                        errors.push(StatusError::PaperFeed);
+                    }
+
+                    // Second Byte
+                    if ((buffer[1] >> AUTO_CUTTER_BIT) & 1) == 1 {
+                        errors.push(StatusError::AutoCutter);
+                    }
+                    if ((buffer[1] >> RECOVERABLE_BIT) & 1) == 1 {
+                        errors.push(StatusError::Recoverable);
+                    }
+                    if ((buffer[1] >> AUTOMATIC_RECOVERABLE_BIT) & 1) == 1 {
+                        errors.push(StatusError::AutomaticallyRecoverable);
+                    }
+
+                    // Third Byte
+                    if ((buffer[2] >> PAPER_NEAR_END_BIT) & 0b11) == 0b11 {
+                        errors.push(StatusError::PaperNearEnd);
+                    }
+                    if ((buffer[2] >> PAPER_BIT) & 0b11) == 0b11 {
+                        errors.push(StatusError::PaperEnd);
+                    }
+                    // Fourth byte seems to be unused
+                }
             }
+            SupportedPrinters::Epic => {
+                let cmd = [0x1B as u8, 0x40, 0x10, 0x04, 0x01];
+                match self.write(&cmd) {
+                    Ok(_) => {
+                        let mut status = [0_u8; 16];
+                        match self.read(&mut status) {
+                            Ok(transferred) => {
+                                if transferred != 1 {
+                                    println!("error");
+                                    errors.push(StatusError::Communication);
+                                }
+                            }
+                            Err(_) => errors.push(StatusError::Communication),
+                        }
+                    }
+                    Err(_) => errors.push(StatusError::Communication),
+                }
+            }
+            SupportedPrinters::P3 => (),
+            SupportedPrinters::Unknown => (),
         }
-
-        // First Byte
-        if ((buffer[0] >> OFFLINE_BIT) & 1) == 1 {
-            errors.push(StatusError::Offline);
-        } else {
-            errors.push(StatusError::Online);
-        }
-        if ((buffer[0] >> DOOR_STATUS_BIT) & 1) == 1 {
-            errors.push(StatusError::DoorOpen);
-        }
-        if ((buffer[0] >> PAPER_FEED_BIT) & 1) == 1 {
-            errors.push(StatusError::PaperFeed);
-        }
-
-        // Second Byte
-        if ((buffer[1] >> AUTO_CUTTER_BIT) & 1) == 1 {
-            errors.push(StatusError::AutoCutter);
-        }
-        if ((buffer[1] >> RECOVERABLE_BIT) & 1) == 1 {
-            errors.push(StatusError::Recoverable);
-        }
-        if ((buffer[1] >> AUTOMATIC_RECOVERABLE_BIT) & 1) == 1 {
-            errors.push(StatusError::AutomaticallyRecoverable);
-        }
-
-        // Third Byte
-        if ((buffer[2] >> PAPER_NEAR_END_BIT) & 0b11) == 0b11 {
-            errors.push(StatusError::PaperNearEnd);
-        }
-        if ((buffer[2] >> PAPER_BIT) & 0b11) == 0b11 {
-            errors.push(StatusError::PaperEnd);
-        }
-        // Fourth byte seems to be unused
 
         if !errors.is_empty() {
             return Err(errors);
         }
-
         Ok(())
     }
 
-    pub fn read(&mut self, buf: &mut [u8; 16]) -> Result<(), Error> {
-        let _ = self.handle.read_bulk(self.stat_ep, buf, self.timeout)?;
-        Ok(())
+    pub fn read(&mut self, buf: &mut [u8; 16]) -> Result<usize, Error> {
+        let transferred = self.handle.read_bulk(self.stat_ep, buf, self.timeout)?;
+        Ok(transferred)
     }
 
     pub fn has_asb_capability(&self) -> bool {
