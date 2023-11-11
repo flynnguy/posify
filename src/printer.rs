@@ -1000,22 +1000,40 @@ impl Printer {
                 }
             }
             SupportedPrinters::Epic => {
-                let cmd = [0x1B as u8, 0x40, 0x10, 0x04, 0x01];
-                match self.write(&cmd) {
-                    Ok(_) => {
-                        let mut status = [0_u8; 16];
-                        match self.read(&mut status) {
-                            Ok(transferred) => {
-                                if transferred != 1 {
-                                    println!("error");
-                                    errors.push(StatusError::Communication);
-                                }
-                            }
-                            Err(_) => errors.push(StatusError::Communication),
-                        }
+                let mut data_in = [0 as u8; 16];
+                let mut i: i32 = 0;
+                while i < 4 {
+                    let cmd = [0x1B as u8, 0x40, 0x10, 0x04, (i + 1) as u8];
+                    match self.handle.write_bulk(self.cmd_ep, &cmd, self.timeout) {
+                        Ok(_) => (),
+                        Err(_) => errors.push(StatusError::Communication),
                     }
-                    Err(_) => errors.push(StatusError::Communication),
+                    match self.handle.read_bulk(
+                        self.stat_ep,
+                        &mut data_in[(i as usize)..],
+                        self.timeout,
+                    ) {
+                        Ok(transferred) => {
+                            if transferred != 1 {
+                                errors.push(StatusError::Communication);
+                            }
+                        }
+                        Err(_) => errors.push(StatusError::Communication),
+                    }
+                    i += 1;
                 }
+                if data_in[0] >> 3 == 1 {
+                    errors.push(StatusError::Offline)
+                };
+                if data_in[1] >> 2 == 1 {
+                    errors.push(StatusError::DoorOpen)
+                };
+                if data_in[1] >> 5 == 1 {
+                    errors.push(StatusError::PaperEnd)
+                };
+                if data_in[2] >> 3 == 1 {
+                    errors.push(StatusError::AutoCutter)
+                };
             }
             SupportedPrinters::P3 => (),
             SupportedPrinters::Unknown => (),
