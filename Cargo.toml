@@ -1,6 +1,6 @@
 [package]
 name = "posify"
-version = "0.6.8"
+version = "0.6.9"
 description = """
 An thermal printer driver for Rust
 """
@@ -8,7 +8,7 @@ readme = "README.md"
 keywords = ["ESC", "POS", "p3", "snbc", "printer"]
 repository = "https://github.com/flynnguy/posify"
 license = "MIT"
-authors = ["Qian Linfeng <thewawar@gmail.com>", "Christopher Flynn <flynnguy@gmail.com>"]
+authors = ["Qian Linfeng <thewawar@gmail.com>", "Christopher Flynn <flynnguy@gmail.com>", "Rishi Sharma <info@rshii.io>"]
 edition = "2021"
 
 [features]

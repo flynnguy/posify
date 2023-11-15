@@ -14,6 +14,7 @@ use crate::img::Image;
 /// Timeout for sending/receiving USB messages
 pub const TIMEOUT: u64 = 400;
 
+// SNBC
 // First Byte
 const OFFLINE_BIT: u8 = 3;
 const DOOR_STATUS_BIT: u8 = 5;
@@ -25,6 +26,15 @@ const AUTOMATIC_RECOVERABLE_BIT: u8 = 6;
 // Third Byte
 const PAPER_NEAR_END_BIT: u8 = 0;
 const PAPER_BIT: u8 = 2;
+
+// EPIC 880
+const EPIC_STATUS_BYTE_0: usize = 0;
+const EPIC_STATUS_BYTE_1: usize = 1;
+const EPIC_STATUS_BYTE_2: usize = 2;
+const EPIC_STATUS_OFFLINE_BIT: i32 = 3;
+const EPIC_STATUS_COVER_OPEN_BIT: i32 = 2;
+const EPIC_STATUS_PAPER_END_BIT: i32 = 5;
+const EPIC_STATUS_AUTO_CUTTER_BIT: i32 = 3;
 
 /// SupportedPrinters enumerates the list of printers that this library knows
 /// about. Should be easy to add your own to this library or you could try
@@ -228,6 +238,9 @@ impl Printer {
         };
 
         let mut handle = device.open()?;
+
+        let _ = handle.set_auto_detach_kernel_driver(true);
+        handle.claim_interface(0).expect("Cannot claim_interface");
 
         let config_desc = match device.config_descriptor(0) {
             Ok(v) => v,
@@ -653,11 +666,6 @@ impl Printer {
             font,
             kind,
         };
-        n += self.write(&bc.set_width()?)?;
-        n += self.write(&bc.set_height())?;
-        n += self.write(&bc.set_text_position())?;
-        n += self.write(&bc.set_font())?;
-        n += self.write(&bc.set_barcode_type())?;
 
         // Code128 requires the Code Set to be sent before the barcode text
         //
@@ -669,6 +677,11 @@ impl Printer {
         // 128C (Code Set C) – 00–99 (encodes two digits with a single code point) and FNC1
         // SNBC Also requires sending the number of bytes in the Code128 receipt
         if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::SNBC {
+            n += self.write(&bc.set_width()?)?;
+            n += self.write(&bc.set_height())?;
+            n += self.write(&bc.set_text_position())?;
+            n += self.write(&bc.set_font())?;
+            n += self.write(&bc.set_barcode_type())?;
             let mut code128_bytes: Vec<u8> = vec![0x7b]; // Next byte will set the code set
             if code.len() % 2 == 0 && code.chars().all(|x| x.is_ascii_digit()) {
                 // even number of chars and they are all numbers, we can use Code Set C
@@ -687,15 +700,15 @@ impl Printer {
             code128_bytes.insert(0, count as u8);
             n += self.write(&code128_bytes)?;
             return Ok(n);
-        } else if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::Epic {
-            self.write(&[0x7b, 0x41])?; // No docs to specify what the Epson mode actually does
-                                        // But this is probably codeset A. Using codeset C
-                                        // causes the text below the barcode to be corrupted
-        } else if kind == BarcodeType::Code128 {
-            self.write(&[0x7b_u8, 0x43])?; // Code Set C
+        } else if self.printer == SupportedPrinters::Epic {
+            n += self.write(&[0x1D, 0x48, 0x02, 0x1D, 0x77, 0x02, 0x1D, 0x6B, 0x49, code.len() as u8])?;
+        } else {
+            return Err(Error::Unsupported);
         }
-        self.write(code.as_bytes())?;
-        self.write(&[0x00_u8])?; // Need to send NULL to finish
+
+        n += self.write(code.as_bytes())?;
+        n += self.write(&[0x00_u8])?; // Need to send NULL to finish
+
         Ok(n)
     }
 
@@ -952,58 +965,108 @@ impl Printer {
     // Below is an example using off-line status to get state of paper door
     pub fn get_status(&mut self) -> Result<(), Vec<StatusError>> {
         let mut errors: Vec<StatusError> = Vec::new();
-
         let mut buffer = [0_u8; 16];
-        match self.read(&mut buffer) {
-            Ok(_) => (),
-            Err(_) => {
-                errors.push(StatusError::Communication);
-                return Err(errors);
+
+        match self.printer {
+            SupportedPrinters::SNBC => {
+                if self.printer == SupportedPrinters::SNBC {
+                    match self.read(&mut buffer) {
+                        Ok(_) => (),
+                        Err(_) => {
+                            errors.push(StatusError::Communication);
+                            return Err(errors);
+                        }
+                    }
+
+                    // First Byte
+                    if ((buffer[0] >> OFFLINE_BIT) & 1) == 1 {
+                        errors.push(StatusError::Offline);
+                    } else {
+                        errors.push(StatusError::Online);
+                    }
+                    if ((buffer[0] >> DOOR_STATUS_BIT) & 1) == 1 {
+                        errors.push(StatusError::DoorOpen);
+                    }
+                    if ((buffer[0] >> PAPER_FEED_BIT) & 1) == 1 {
+                        errors.push(StatusError::PaperFeed);
+                    }
+
+                    // Second Byte
+                    if ((buffer[1] >> AUTO_CUTTER_BIT) & 1) == 1 {
+                        errors.push(StatusError::AutoCutter);
+                    }
+                    if ((buffer[1] >> RECOVERABLE_BIT) & 1) == 1 {
+                        errors.push(StatusError::Recoverable);
+                    }
+                    if ((buffer[1] >> AUTOMATIC_RECOVERABLE_BIT) & 1) == 1 {
+                        errors.push(StatusError::AutomaticallyRecoverable);
+                    }
+
+                    // Third Byte
+                    if ((buffer[2] >> PAPER_NEAR_END_BIT) & 0b11) == 0b11 {
+                        errors.push(StatusError::PaperNearEnd);
+                    }
+                    if ((buffer[2] >> PAPER_BIT) & 0b11) == 0b11 {
+                        errors.push(StatusError::PaperEnd);
+                    }
+                    // Fourth byte seems to be unused
+                }
             }
+            SupportedPrinters::Epic => {
+                let mut data_in = [0 as u8; 16];
+                let mut i: i32 = 0;
+                while i < 4 {
+                    let cmd = [0x1B as u8, 0x40, 0x10, 0x04, (i + 1) as u8];
+                    match self.handle.write_bulk(self.cmd_ep, &cmd, self.timeout) {
+                        Ok(_) => (),
+                        Err(_) => errors.push(StatusError::Communication),
+                    }
+                    match self.handle.read_bulk(
+                        self.stat_ep,
+                        &mut data_in[(i as usize)..],
+                        self.timeout,
+                    ) {
+                        Ok(transferred) => {
+                            if transferred != 1 {
+                                errors.push(StatusError::Communication);
+                            }
+                        }
+                        Err(_) => errors.push(StatusError::Communication),
+                    }
+                    i += 1;
+                }
+                if data_in[EPIC_STATUS_BYTE_0] >> EPIC_STATUS_OFFLINE_BIT == 1 {
+                    errors.push(StatusError::Offline)
+                };
+                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_COVER_OPEN_BIT == 1 {
+                    errors.push(StatusError::DoorOpen)
+                };
+                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_PAPER_END_BIT == 1 {
+                    errors.push(StatusError::PaperEnd)
+                };
+                if data_in[EPIC_STATUS_BYTE_2] >> EPIC_STATUS_AUTO_CUTTER_BIT == 1 {
+                    errors.push(StatusError::AutoCutter)
+                };
+            }
+            SupportedPrinters::P3 => (),
+            SupportedPrinters::Unknown => (),
         }
-
-        // First Byte
-        if ((buffer[0] >> OFFLINE_BIT) & 1) == 1 {
-            errors.push(StatusError::Offline);
-        } else {
-            errors.push(StatusError::Online);
-        }
-        if ((buffer[0] >> DOOR_STATUS_BIT) & 1) == 1 {
-            errors.push(StatusError::DoorOpen);
-        }
-        if ((buffer[0] >> PAPER_FEED_BIT) & 1) == 1 {
-            errors.push(StatusError::PaperFeed);
-        }
-
-        // Second Byte
-        if ((buffer[1] >> AUTO_CUTTER_BIT) & 1) == 1 {
-            errors.push(StatusError::AutoCutter);
-        }
-        if ((buffer[1] >> RECOVERABLE_BIT) & 1) == 1 {
-            errors.push(StatusError::Recoverable);
-        }
-        if ((buffer[1] >> AUTOMATIC_RECOVERABLE_BIT) & 1) == 1 {
-            errors.push(StatusError::AutomaticallyRecoverable);
-        }
-
-        // Third Byte
-        if ((buffer[2] >> PAPER_NEAR_END_BIT) & 0b11) == 0b11 {
-            errors.push(StatusError::PaperNearEnd);
-        }
-        if ((buffer[2] >> PAPER_BIT) & 0b11) == 0b11 {
-            errors.push(StatusError::PaperEnd);
-        }
-        // Fourth byte seems to be unused
 
         if !errors.is_empty() {
             return Err(errors);
         }
-
         Ok(())
     }
 
-    pub fn read(&mut self, buf: &mut [u8; 16]) -> Result<(), Error> {
-        let _ = self.handle.read_bulk(self.stat_ep, buf, self.timeout)?;
-        Ok(())
+    pub fn read(&mut self, buf: &mut [u8; 16]) -> Result<usize, Error> {
+        let transferred = self.handle.read_bulk(self.stat_ep, buf, self.timeout)?;
+        Ok(transferred)
+    }
+
+    pub fn has_asb_capability(&self) -> bool {
+        match self.printer {
+            SupportedPrinters::SNBC => true,
+            _ => false,
+        }
     }
 }
