@@ -663,11 +663,6 @@ impl Printer {
             font,
             kind,
         };
-        n += self.write(&bc.set_width()?)?;
-        n += self.write(&bc.set_height())?;
-        n += self.write(&bc.set_text_position())?;
-        n += self.write(&bc.set_font())?;
-        n += self.write(&bc.set_barcode_type())?;
 
         // Code128 requires the Code Set to be sent before the barcode text
         //
@@ -679,6 +674,11 @@ impl Printer {
         // 128C (Code Set C) – 00–99 (encodes two digits with a single code point) and FNC1
         // SNBC Also requires sending the number of bytes in the Code128 receipt
         if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::SNBC {
+            n += self.write(&bc.set_width()?)?;
+            n += self.write(&bc.set_height())?;
+            n += self.write(&bc.set_text_position())?;
+            n += self.write(&bc.set_font())?;
+            n += self.write(&bc.set_barcode_type())?;
             let mut code128_bytes: Vec<u8> = vec![0x7b]; // Next byte will set the code set
             if code.len() % 2 == 0 && code.chars().all(|x| x.is_ascii_digit()) {
                 // even number of chars and they are all numbers, we can use Code Set C
@@ -697,15 +697,15 @@ impl Printer {
             code128_bytes.insert(0, count as u8);
             n += self.write(&code128_bytes)?;
             return Ok(n);
-        } else if kind == BarcodeType::Code128 && self.printer == SupportedPrinters::Epic {
-            self.write(&[0x7b, 0x41])?; // No docs to specify what the Epson mode actually does
-                                        // But this is probably codeset A. Using codeset C
-                                        // causes the text below the barcode to be corrupted
-        } else if kind == BarcodeType::Code128 {
-            self.write(&[0x7b_u8, 0x43])?; // Code Set C
+        } else if self.printer == SupportedPrinters::Epic {
+            n += self.write(&[0x1D, 0x48, 0x02, 0x1D, 0x77, 0x02, 0x1D, 0x6B, 0x49, code.len() as u8])?;
+        } else {
+            return Err(Error::Unsupported);
         }
-        self.write(code.as_bytes())?;
-        self.write(&[0x00_u8])?; // Need to send NULL to finish
+
+        n += self.write(code.as_bytes())?;
+        n += self.write(&[0x00_u8])?; // Need to send NULL to finish
+
         Ok(n)
     }
 
@@ -1032,16 +1032,16 @@ impl Printer {
                     }
                     i += 1;
                 }
-                if data_in[EPIC_STATUS_BYTE_0] >> EPIC_STATUS_OFFLINE_BIT  == 1 {
+                if data_in[EPIC_STATUS_BYTE_0] >> EPIC_STATUS_OFFLINE_BIT == 1 {
                     errors.push(StatusError::Offline)
                 };
-                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_COVER_OPEN_BIT  == 1 {
+                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_COVER_OPEN_BIT == 1 {
                     errors.push(StatusError::DoorOpen)
                 };
-                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_PAPER_END_BIT  == 1 {
+                if data_in[EPIC_STATUS_BYTE_1] >> EPIC_STATUS_PAPER_END_BIT == 1 {
                     errors.push(StatusError::PaperEnd)
                 };
-                if data_in[EPIC_STATUS_BYTE_2] >> EPIC_STATUS_AUTO_CUTTER_BIT  == 1 {
+                if data_in[EPIC_STATUS_BYTE_2] >> EPIC_STATUS_AUTO_CUTTER_BIT == 1 {
                     errors.push(StatusError::AutoCutter)
                 };
             }
