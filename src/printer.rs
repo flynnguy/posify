@@ -239,6 +239,9 @@ impl Printer {
 
         let mut handle = device.open()?;
 
+        let _ = handle.set_auto_detach_kernel_driver(true);
+        handle.claim_interface(0).expect("Cannot claim_interface");
+
         let config_desc = match device.config_descriptor(0) {
             Ok(v) => v,
             Err(e) => {
