@@ -796,7 +796,9 @@ impl Printer {
             SupportedPrinters::P3 => self.write(&[0x0a, 0x0a, 0x0a, 0x1b, 0x6d]),
             _ => Err(Error::Unsupported),
         };
-        std::thread::sleep(std::time::Duration::new(3,0));
+        if self.printer == SupportedPrinters::Epic {
+            std::thread::sleep(std::time::Duration::new(3,0));
+        }
         res
     }
 
