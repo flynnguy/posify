@@ -789,13 +789,15 @@ impl Printer {
     }
 
     pub fn partial_cut(&mut self) -> Result<usize, Error> {
-        match self.printer {
+        let res = match self.printer {
             SupportedPrinters::SNBC | SupportedPrinters::Epic => {
                 self.write(&[0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x01])
             }
             SupportedPrinters::P3 => self.write(&[0x0a, 0x0a, 0x0a, 0x1b, 0x6d]),
             _ => Err(Error::Unsupported),
-        }
+        };
+        std::thread::sleep(std::time::Duration::new(3,0));
+        res
     }
 
     pub fn chain_bit_image(
