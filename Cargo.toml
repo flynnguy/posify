@@ -1,6 +1,6 @@
 [package]
 name = "posify"
-version = "0.6.9"
+version = "0.6.10"
 description = """
 An thermal printer driver for Rust
 """
