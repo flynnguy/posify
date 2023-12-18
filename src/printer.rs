@@ -144,7 +144,7 @@ pub struct UsbInfo {
 pub struct Printer {
     codec: EncodingRef,
     trap: EncoderTrap,
-    printer: SupportedPrinters,
+    pub printer: SupportedPrinters,
     _device: rusb::Device<rusb::GlobalContext>,
     handle: rusb::DeviceHandle<rusb::GlobalContext>,
     descriptor: rusb::DeviceDescriptor,
