@@ -145,7 +145,7 @@ pub struct Printer {
     codec: EncodingRef,
     trap: EncoderTrap,
     pub printer: SupportedPrinters,
-    _device: rusb::Device<rusb::GlobalContext>,
+    device: rusb::Device<rusb::GlobalContext>,
     handle: rusb::DeviceHandle<rusb::GlobalContext>,
     descriptor: rusb::DeviceDescriptor,
     timeout: Duration,
@@ -183,9 +183,8 @@ impl Printer {
             // SNBC in API mode doesn't have a MFG or Product string to match
             // so we'll add a section to match on vid/pid
             // Should we move all of the matches here?
-            match ids {
-                (0x154f, 0x154f) => return Ok((SupportedPrinters::SNBC, vid, pid)),
-                _ => (),
+            if let (0x154f, 0x154f) = ids {
+                return Ok((SupportedPrinters::SNBC, vid, pid));
             }
             match handle.read_manufacturer_string(language, &device_desc, timeout) {
                 Ok(m) => {
@@ -294,7 +293,7 @@ impl Printer {
             codec: codec.unwrap_or(UTF_8 as EncodingRef),
             trap: trap.unwrap_or(EncoderTrap::Replace),
             printer,
-            _device: device,
+            device,
             handle,
             descriptor,
             timeout: Duration::from_millis(TIMEOUT),
@@ -303,6 +302,25 @@ impl Printer {
             cmd_ep,
             stat_ep,
         })
+    }
+
+    pub fn release(&mut self) -> Result<(), Error> {
+        let config_desc = match self.device.config_descriptor(0) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(e.into());
+            }
+        };
+
+        let interface = match config_desc.interfaces().next() {
+            Some(x) => x,
+            None => {
+                return Err(Error::InvalidEndpoints);
+            }
+        };
+        let _ = self.handle.release_interface(interface.number());
+        let _ = self.handle.release_interface(0);
+        Ok(())
     }
 
     pub fn info(&mut self) -> Result<UsbInfo, Error> {
@@ -701,7 +719,18 @@ impl Printer {
             n += self.write(&code128_bytes)?;
             return Ok(n);
         } else if self.printer == SupportedPrinters::Epic {
-            n += self.write(&[0x1D, 0x48, 0x02, 0x1D, 0x77, 0x02, 0x1D, 0x6B, 0x49, code.len() as u8])?;
+            n += self.write(&[
+                0x1D,
+                0x48,
+                0x02,
+                0x1D,
+                0x77,
+                0x02,
+                0x1D,
+                0x6B,
+                0x49,
+                code.len() as u8,
+            ])?;
         } else {
             return Err(Error::Unsupported);
         }
@@ -797,7 +826,7 @@ impl Printer {
             _ => Err(Error::Unsupported),
         };
         if self.printer == SupportedPrinters::Epic {
-            std::thread::sleep(std::time::Duration::new(3,0));
+            std::thread::sleep(std::time::Duration::new(3, 0));
         }
         res
     }
@@ -1017,10 +1046,10 @@ impl Printer {
                 }
             }
             SupportedPrinters::Epic => {
-                let mut data_in = [0 as u8; 16];
+                let mut data_in = [0_u8; 16];
                 let mut i: i32 = 0;
                 while i < 4 {
-                    let cmd = [0x1B as u8, 0x40, 0x10, 0x04, (i + 1) as u8];
+                    let cmd = [0x1B_u8, 0x40, 0x10, 0x04, (i + 1) as u8];
                     match self.handle.write_bulk(self.cmd_ep, &cmd, self.timeout) {
                         Ok(_) => (),
                         Err(_) => errors.push(StatusError::Communication),
@@ -1068,9 +1097,6 @@ impl Printer {
     }
 
     pub fn has_asb_capability(&self) -> bool {
-        match self.printer {
-            SupportedPrinters::SNBC => true,
-            _ => false,
-        }
+        matches!(self.printer, SupportedPrinters::SNBC)
     }
 }
