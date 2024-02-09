@@ -79,7 +79,7 @@ impl Image {
 
     #[allow(clippy::many_single_char_names)]
     fn get_line(&self, num: u32, density: u32) -> Option<Box<[u8]>> {
-        let n = self.height as u32 / density;
+        let n = self.height / density;
         let y = num - 1;
         if y >= n {
             return None;
