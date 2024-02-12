@@ -93,7 +93,7 @@ impl Barcode {
     ///
     /// So 20.25 * 8 = 162 which is 0xA2 in hex
     pub fn set_height(&mut self) -> [u8; 3] {
-        [0x1d, 0x68, self.height as u8]
+        [0x1d, 0x68, self.height]
     }
 
     /// Selects the print position of HRI (Human Readable Interpretation)
@@ -156,7 +156,7 @@ impl Barcode {
         let mut split: Vec<&str> = Vec::new();
         for (i, _) in barcode.as_bytes().iter().enumerate() {
             if i % 2 == 0 {
-                split.push(Some(&barcode[i..i + 2]).unwrap());
+                split.push(&barcode[i..i + 2]);
             }
         }
         // Now convert string pairs to numeric equiv in codeset c
