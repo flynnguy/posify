@@ -923,6 +923,39 @@ impl Printer {
         Ok(value.to_string())
     }
 
+    pub fn get_firmware_checksum(&mut self) -> Result<String, Error> {
+        match self.printer {
+            SupportedPrinters::Epic => {
+                self.write(&[0x1b, 0x7e, 0x5a]).unwrap();
+                let mut buffer = [0_u8; 4];
+                let _ = self
+                    .handle
+                    .read_bulk(self.stat_ep, &mut buffer, self.timeout)?;
+                // Truncate the first two command bytes and read the remaining two as bits
+                let value = format!("{:b}{:b}", &buffer[2], &buffer[3]);
+                Ok(value.to_string())
+            }
+            _ => Err(Error::Unsupported),
+        }
+    }
+
+    pub fn get_firmware_id(&mut self) -> Result<String, Error> {
+        match self.printer {
+            SupportedPrinters::Epic => {
+                self.write(&[0x1b, 0x7e, 0x46]).unwrap();
+                let mut buffer = [0_u8; 14];
+                let _ = self
+                    .handle
+                    .read_bulk(self.stat_ep, &mut buffer, self.timeout)?;
+                // Truncate the first two command bytes and terminator
+                let firmware_id = &buffer[2..13]; 
+                let value = std::str::from_utf8(&firmware_id).unwrap();
+                Ok(value.to_string())
+            }
+            _ => Err(Error::Unsupported),
+        }
+    }
+
     pub fn get_power_count(&mut self) -> Result<String, Error> {
         self.write(&[0x1d, 0xe5]).unwrap();
         let mut buffer = [0_u8; 8];
